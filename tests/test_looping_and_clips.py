@@ -40,6 +40,7 @@ from guiautomation.screen import Monitor
 
 KEY = Step(StepType.PRESS_KEY, key="a")
 DESKTOP = Monitor(index=0, left=0, top=0, width=100, height=100)
+CLIP = Region(20, 30, 10, 10)
 
 
 def make_runner(clock: FakeClock | None = None, **kwargs) -> tuple[Runner, FakeDriver]:
@@ -318,28 +319,44 @@ def make_builder(gui: SimpleNamespace, steps: list[Step] | None = None):
     builder._steps = StepList(builder._automation.steps)
     builder._selected = lambda: None
     builder._changed = MagicMock()
+    builder._clip_delay = SimpleNamespace(get=lambda: "No delay")
     return builder
 
 
-def patch_clipping(gui, monkeypatch, tmp_path: Path) -> None:
+def patch_clipping(gui, monkeypatch, tmp_path: Path) -> SimpleNamespace:
+    """Replace the screen, overlay and countdown. Returns what they were asked to do."""
+    seen = SimpleNamespace(grabs=[], overlays=[], countdowns=[])
     scratch = tmp_path / "scratch"
     scratch.mkdir()
     monkeypatch.setattr(gui.app.tempfile, "mkdtemp", lambda prefix: str(scratch))
     monkeypatch.setattr(gui.app.screen, "virtual_desktop", lambda: DESKTOP)
-    monkeypatch.setattr(
-        gui.app.screen, "grab_region", lambda *_a: Image.new("RGB", (10, 10), "white")
-    )
 
-    def overlay(_root, _desktop, on_done) -> None:
-        on_done(Region(0, 0, 10, 10))
+    def grab_region(left, top, width, height) -> Image.Image:
+        seen.grabs.append((left, top, width, height))
+        image = Image.new("RGB", (width, height), "white")
+        if (width, height) == (DESKTOP.width, DESKTOP.height):
+            image.putpixel((CLIP.left, CLIP.top), (255, 0, 0))  # Marks where CLIP starts.
+        return image
+
+    monkeypatch.setattr(gui.app.screen, "grab_region", grab_region)
+
+    def overlay(_root, _desktop, on_done, frozen=None) -> None:
+        seen.overlays.append(frozen)
+        on_done(CLIP)
 
     monkeypatch.setattr(gui.app, "RegionOverlay", overlay)
+
+    def countdown(_root, seconds, on_done, on_cancel) -> None:
+        seen.countdowns.append(SimpleNamespace(seconds=seconds, done=on_done, cancel=on_cancel))
+
+    monkeypatch.setattr(gui.app, "CountdownWindow", countdown)
 
     def no_dialog(**_kwargs):
         raise AssertionError("clipping must not open a file dialog")
 
     monkeypatch.setattr(gui.app.filedialog, "asksaveasfilename", no_dialog)
     monkeypatch.setattr(gui.app.filedialog, "askopenfilename", no_dialog)
+    return seen
 
 
 def test_clipping_an_unsaved_test_asks_for_no_file(gui, monkeypatch, tmp_path) -> None:
@@ -390,6 +407,114 @@ def test_replace_clip_swaps_the_target_in_place(gui, monkeypatch, tmp_path) -> N
     assert builder._steps.steps[0].image.startswith("images/")
     assert builder._steps.steps[0].x is None
     assert builder._steps.steps[1] == KEY
+
+
+def delayed_builder(gui, steps: list[Step] | None = None, delay: str = "5 seconds"):
+    builder = make_builder(gui, steps)
+    builder._clip_delay = SimpleNamespace(get=lambda: delay)
+    builder.root.withdraw = MagicMock()
+    builder.root.deiconify = MagicMock()
+    return builder
+
+
+def test_with_no_delay_the_clip_is_taken_live_with_no_countdown(gui, monkeypatch, tmp_path) -> None:
+    seen = patch_clipping(gui, monkeypatch, tmp_path)
+    builder = make_builder(gui)
+    saved: list[str] = []
+    builder.capture(None, saved.append, lambda: None)
+    builder.root.run_pending()
+    assert seen.countdowns == []
+    assert seen.overlays == [None]
+    assert seen.grabs == [(CLIP.left, CLIP.top, CLIP.width, CLIP.height)]
+    assert len(saved) == 1
+
+
+def test_a_delayed_clip_waits_for_the_countdown_with_the_builder_hidden(
+    gui, monkeypatch, tmp_path
+) -> None:
+    seen = patch_clipping(gui, monkeypatch, tmp_path)
+    builder = delayed_builder(gui)
+    saved: list[str] = []
+    builder.capture(None, saved.append, lambda: None)
+    builder.root.run_pending()
+    assert [countdown.seconds for countdown in seen.countdowns] == [5]
+    builder.root.withdraw.assert_called_once()
+    builder.root.deiconify.assert_not_called()
+    assert seen.overlays == [] and seen.grabs == [] and saved == []
+
+
+def test_a_delayed_clip_is_cut_from_the_screen_as_the_countdown_ended(
+    gui, monkeypatch, tmp_path
+) -> None:
+    seen = patch_clipping(gui, monkeypatch, tmp_path)
+    builder = delayed_builder(gui)
+    saved: list[str] = []
+    builder.capture(None, saved.append, lambda: None)
+    builder.root.run_pending()
+    seen.countdowns[0].done()
+    assert seen.grabs == []  # The countdown gets time to leave the screen first.
+    builder.root.run_pending()
+    assert seen.grabs == [(DESKTOP.left, DESKTOP.top, DESKTOP.width, DESKTOP.height)]
+    assert len(seen.overlays) == 1 and seen.overlays[0].size == (100, 100)
+    builder.root.deiconify.assert_called_once()
+    with Image.open(builder.image_file(saved[0])) as clip:
+        assert clip.size == (CLIP.width, CLIP.height)
+        assert clip.getpixel((0, 0)) == (255, 0, 0)
+    assert gui.errors == []
+
+
+def test_cancelling_the_countdown_brings_the_builder_back_unchanged(
+    gui, monkeypatch, tmp_path
+) -> None:
+    seen = patch_clipping(gui, monkeypatch, tmp_path)
+    builder = delayed_builder(gui)
+    saved: list[str] = []
+    restored: list[bool] = []
+    builder.capture(None, saved.append, lambda: restored.append(True))
+    builder.root.run_pending()
+    seen.countdowns[0].cancel()
+    builder.root.run_pending()
+    builder.root.deiconify.assert_called_once()
+    assert restored == [True]
+    assert seen.overlays == [] and seen.grabs == [] and saved == []
+    assert gui.errors == []
+
+
+def test_a_countdown_that_cannot_open_brings_the_builder_back(gui, monkeypatch, tmp_path) -> None:
+    patch_clipping(gui, monkeypatch, tmp_path)
+    monkeypatch.setattr(gui.app, "CountdownWindow", MagicMock(side_effect=RuntimeError("no tk")))
+    builder = delayed_builder(gui)
+    builder.capture(None, lambda _relative: None, lambda: None)
+    builder.root.run_pending()
+    builder.root.deiconify.assert_called_once()
+    assert gui.errors == ["no tk"]
+
+
+def test_clip_a_click_and_replace_clip_use_the_delay(gui, monkeypatch, tmp_path) -> None:
+    seen = patch_clipping(gui, monkeypatch, tmp_path)
+    monkeypatch.setattr(gui.app.simpledialog, "askstring", lambda *_a, **_k: None)
+    builder = delayed_builder(gui, [Step(StepType.CLICK, x=1, y=2)], delay="3 seconds")
+    builder._selected = lambda: 0
+    builder._replace_clip()
+    builder.root.run_pending()
+    builder._clip_click()
+    builder.root.run_pending()
+    assert [countdown.seconds for countdown in seen.countdowns] == [3, 3]
+    assert builder._steps.steps[0].image is None  # Nothing changes until a countdown ends.
+    for countdown in seen.countdowns:
+        countdown.done()
+        builder.root.run_pending()
+    assert [step.image is not None for step in builder._steps.steps] == [True, True]
+
+
+def test_the_step_editor_clips_through_the_builder_so_it_gets_the_delay(gui) -> None:
+    editor = gui.app.StepEditor.__new__(gui.app.StepEditor)
+    editor.window = MagicMock()
+    editor._app = MagicMock()
+    editor._entries = {}
+    editor._capture(MagicMock())
+    editor._app.capture.assert_called_once()
+    assert editor._app.capture.call_args.args[0] is editor.window
 
 
 def test_replace_clip_needs_a_selection(gui) -> None:

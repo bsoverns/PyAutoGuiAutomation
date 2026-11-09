@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Clip delay** in the builder and the step editor: wait 3, 5 or 10 seconds before a clip, with a countdown you can cancel, to open a menu or hover a control first. A delayed clip is cut from the screen as it looked when the countdown ended. The default is no delay, and the choice is kept for the session only.
 - Press key and hotkey steps have a key picker with the Windows key and other named keys, and accept friendly spellings such as `Windows` or `Page Up`.
 - **Run GuiAutomation.bat** sets itself up on a fresh clone: it creates `.venv`, installs the pinned packages, and reinstalls when `pyproject.toml` changes.
 - Step names: shown first in the step editor and list, live during a run, and in the results.

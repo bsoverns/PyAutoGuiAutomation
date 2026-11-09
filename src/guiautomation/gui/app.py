@@ -12,14 +12,19 @@ from datetime import datetime
 from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
+from PIL import Image
+
 from guiautomation import screen
 from guiautomation.export import export_script
-from guiautomation.gui.capture import RegionOverlay
+from guiautomation.gui.capture import CountdownWindow, RegionOverlay
 from guiautomation.gui.guided import GuidedRun
 from guiautomation.gui.logic import (
+    CLIP_DELAYS,
     Region,
     StepList,
     capture_filename,
+    clip_delay_seconds,
+    crop_box,
     describe_step,
     fields_for,
     parse_repeat,
@@ -147,6 +152,7 @@ class StepEditor:
         clip = ttk.Button(frame, command=lambda: self._capture(variable))
         clip.pack(side="left")
         ttk.Button(frame, text="Clear", command=lambda: variable.set("")).pack(side="left", padx=4)
+        self._app.clip_delay_box(frame).pack(side="left", padx=4)
         preview = ttk.Label(frame)
         preview.pack(side="left", padx=4)
 
@@ -210,6 +216,8 @@ class BuilderApp:
         self._path: Path | None = Path(path) if path else None
         self._dirty = False
         self._scratch: Path | None = None  # Holds clips until the test is first saved.
+        # The clip delay lasts for the session and is never saved with a test.
+        self._clip_delay = tk.StringVar(value=CLIP_DELAYS[0][0])
         self._set_automation(automation or Automation(), self._path)
 
         root.geometry("760x560")
@@ -233,6 +241,8 @@ class BuilderApp:
         ):
             ttk.Button(toolbar, text=text, command=command).pack(fill="x", pady=2)
         self._build_repeat_controls(toolbar)
+        ttk.Label(toolbar, text="Clip delay:").pack(anchor="w", pady=(12, 0))
+        self.clip_delay_box(toolbar).pack(fill="x", pady=2)
         self._listbox = tk.Listbox(root, activestyle="dotbox", exportselection=False)
         self._listbox.pack(side="left", fill="both", expand=True, padx=(8, 0), pady=8)
         self._listbox.bind("<Double-Button-1>", lambda _event: self._edit())
@@ -473,16 +483,31 @@ class BuilderApp:
                 self._scratch = Path(tempfile.mkdtemp(prefix="guiautomation-"))
             self._automation.base_dir = self._scratch
 
+    def clip_delay_box(self, parent: tk.Misc) -> ttk.Combobox:
+        """Return a picker for the clip delay. Every picker shows and sets the same delay."""
+        return ttk.Combobox(
+            parent,
+            textvariable=self._clip_delay,
+            values=[label for label, _ in CLIP_DELAYS],
+            state="readonly",
+            width=11,
+        )
+
     def capture(
         self,
         dialog: tk.Toplevel | None,
         on_saved: Callable[[str], None],
         restore: Callable[[], None],
     ) -> None:
-        """Hide all windows, let the user drag a region, and save it with the test's images."""
+        """Hide all windows, let the user drag a region, and save it with the test's images.
+
+        With a clip delay chosen, a countdown runs first. The screen is then frozen as it looks
+        when the countdown ends, and the region is cut from that picture.
+        """
         try:
             self._ensure_image_folder()
             desktop = screen.virtual_desktop()
+            delay = clip_delay_seconds(self._clip_delay.get())
         except Exception as exc:  # noqa: BLE001 - shown to the user instead of crashing the GUI
             messagebox.showerror("Capture failed", str(exc))
             restore()
@@ -492,39 +517,65 @@ class BuilderApp:
             self.root.deiconify()
             restore()
 
-        def grab(region: Region) -> None:
+        def fail(exc: Exception) -> None:
+            finish()
+            messagebox.showerror("Capture failed", str(exc))
+
+        def grab(region: Region, frozen: Image.Image | None) -> None:
             try:
-                relative = self._save_capture(region)
+                relative = self._save_capture(region, desktop, frozen)
             except Exception as exc:  # noqa: BLE001 - shown to the user instead of crashing the GUI
-                finish()
-                messagebox.showerror("Capture failed", str(exc))
+                fail(exc)
                 return
             finish()
             on_saved(relative)
 
-        def on_region(region: Region | None) -> None:
-            if region is None:
-                finish()
-            else:
-                self.root.after(_HIDE_DELAY_MS, lambda: grab(region))
+        def show_overlay(frozen: Image.Image | None = None) -> None:
+            def on_region(region: Region | None) -> None:
+                if region is None:
+                    finish()
+                else:
+                    self.root.after(_HIDE_DELAY_MS, lambda: grab(region, frozen))
 
-        def show_overlay() -> None:
             try:
-                RegionOverlay(self.root, desktop, on_region)
+                RegionOverlay(self.root, desktop, on_region, frozen)
             except Exception as exc:  # noqa: BLE001 - the builder must always come back
-                finish()
-                messagebox.showerror("Capture failed", str(exc))
+                fail(exc)
+
+        def freeze() -> None:
+            try:
+                frozen = screen.grab_region(
+                    desktop.left, desktop.top, desktop.width, desktop.height
+                )
+            except Exception as exc:  # noqa: BLE001 - the builder must always come back
+                fail(exc)
+                return
+            show_overlay(frozen)
+
+        def count_down() -> None:
+            try:
+                # The countdown closes itself, then waits to be off the screen before the freeze.
+                CountdownWindow(
+                    self.root, delay, lambda: self.root.after(_HIDE_DELAY_MS, freeze), finish
+                )
+            except Exception as exc:  # noqa: BLE001 - the builder must always come back
+                fail(exc)
 
         if dialog is not None:
             dialog.withdraw()
         self.root.withdraw()
-        self.root.after(_HIDE_DELAY_MS, show_overlay)
+        self.root.after(_HIDE_DELAY_MS, count_down if delay > 0 else show_overlay)
 
-    def _save_capture(self, region: Region) -> str:
+    def _save_capture(
+        self, region: Region, desktop: screen.Monitor, frozen: Image.Image | None
+    ) -> str:
         relative = capture_filename(datetime.now())
         target = self._automation.resolve_image(relative)
         target.parent.mkdir(parents=True, exist_ok=True)
-        image = screen.grab_region(region.left, region.top, region.width, region.height)
+        if frozen is None:
+            image = screen.grab_region(region.left, region.top, region.width, region.height)
+        else:
+            image = frozen.crop(crop_box(region, desktop))
         image.save(target, "PNG")
         return relative
 

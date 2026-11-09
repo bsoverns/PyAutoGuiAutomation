@@ -247,6 +247,7 @@ def make_builder(gui: SimpleNamespace, tmp_path: Path):
     builder.root = FakeRoot()
     builder._path = tmp_path / "t.json"
     builder._automation = Automation(steps=[key("a")], base_dir=tmp_path)
+    builder._clip_delay = SimpleNamespace(get=lambda: "No delay")
     return builder
 
 

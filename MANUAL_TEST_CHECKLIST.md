@@ -54,6 +54,15 @@ Then:
 - [ ] Make a tiny accidental drag (a few pixels). Expected: it is ignored, no image is saved.
 - [ ] Drag from right to left and bottom to top. Expected: the region is still captured correctly.
 - [ ] Open the saved PNG. Expected: it shows exactly the area you selected, and not the builder window or the overlay.
+- [ ] Start the builder. Expected: **Clip delay** in the main window says **No delay**, and a clip starts at once as above.
+- [ ] Set **Clip delay** to **3 seconds** and press **Clip a click**. Expected: the builder hides, a countdown at the top of the main monitor counts 3, 2, 1, then it disappears and the overlay appears.
+- [ ] With a 5 second delay, press **Clip a click**, open a menu in Notepad and leave it open. Expected: the overlay shows the screen frozen with the menu open; drag around a menu item and the saved PNG shows that item, with no countdown in it.
+- [ ] Start a delayed clip and click the countdown. Expected: the builder returns and nothing is captured. Repeat and press Esc straight away, with the same result.
+- [ ] With a delay set, select a step and press **Replace clip**. Expected: the countdown runs before the overlay.
+- [ ] Open the step editor. Expected: the delay picker next to the clip button shows the delay chosen in the main window; change it there, press **Clip from screen**, and the new delay is used. Cancel during the countdown and the step editor returns.
+- [ ] After closing the step editor, check **Clip delay** in the main window. Expected: it shows the delay picked in the editor.
+- [ ] Save the test and open the JSON. Expected: no clip delay in it. Restart the builder. Expected: **No delay** again.
+- [ ] On two monitors, take a delayed clip on the non-primary monitor. Expected: the frozen picture lines up with the real screen and the PNG shows the area selected.
 - [ ] Use the same method for wait for image and assert image visible steps.
 - [ ] Check that the image file is not tracked: `git status` must not list it.
 
