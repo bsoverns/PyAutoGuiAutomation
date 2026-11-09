@@ -29,6 +29,7 @@ from guiautomation.gui.logic import (
     with_clip,
 )
 from guiautomation.gui.running import LoopRun
+from guiautomation.keys import canonical_key, key_choices
 from guiautomation.model import (
     REPEAT_FOREVER,
     Automation,
@@ -103,9 +104,39 @@ class StepEditor:
                     self._form, textvariable=variable, values=labels, state="readonly", width=42
                 )
                 box.grid(row=row, column=1, padx=4, sticky="w")
+            elif spec.kind == "key":
+                self._build_key_row(row, variable)
+            elif spec.kind == "keys":
+                self._build_hotkey_row(row, variable)
             else:
                 entry = ttk.Entry(self._form, textvariable=variable, width=44)
                 entry.grid(row=row, column=1, padx=4)
+
+    def _build_key_row(self, row: int, variable: tk.StringVar) -> None:
+        """A key field that lists the named keys and still accepts a typed one."""
+        box = ttk.Combobox(self._form, textvariable=variable, values=key_choices(), width=42)
+        box.grid(row=row, column=1, padx=4, sticky="w")
+        box.bind("<<ComboboxSelected>>", lambda _event: variable.set(canonical_key(box.get())))
+
+    def _build_hotkey_row(self, row: int, variable: tk.StringVar) -> None:
+        """A typed key combination with a picker that appends a named key to it."""
+        frame = ttk.Frame(self._form)
+        frame.grid(row=row, column=1, padx=4, sticky="w")
+        ttk.Entry(frame, textvariable=variable, width=24).pack(side="left")
+        prompt = "Add a key"
+        picked = tk.StringVar(value=prompt)
+        box = ttk.Combobox(
+            frame, textvariable=picked, values=key_choices(), state="readonly", width=16
+        )
+        box.pack(side="left", padx=4)
+
+        def add(_event: object) -> None:
+            keys = variable.get().strip().rstrip("+,").strip()
+            name = canonical_key(picked.get())
+            variable.set(f"{keys}+{name}" if keys else name)
+            picked.set(prompt)
+
+        box.bind("<<ComboboxSelected>>", add)
 
     def _form_values(self) -> dict[str, str]:
         return {name: variable.get() for name, variable in self._entries.items()}

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Press key and hotkey steps have a key picker with the Windows key and other named keys, and accept friendly spellings such as `Windows` or `Page Up`.
 - **Run GuiAutomation.bat** sets itself up on a fresh clone: it creates `.venv`, installs the pinned packages, and reinstalls when `pyproject.toml` changes.
 - Step names: shown first in the step editor and list, live during a run, and in the results.
 - Each image step can stop the run as failed when its image is missing, or keep looking until it is found.

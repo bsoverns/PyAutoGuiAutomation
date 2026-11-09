@@ -9,6 +9,7 @@ from datetime import datetime
 from pathlib import PurePosixPath
 from typing import Any
 
+from guiautomation.keys import canonical_key
 from guiautomation.model import (
     DEFAULT_CONFIDENCE,
     KEEP_LOOKING,
@@ -29,7 +30,7 @@ IMAGE_FOLDER = "images"
 class FieldSpec:
     name: str
     label: str
-    kind: str  # "int", "float", "text", "keys", "image", or "choice"
+    kind: str  # "int", "float", "text", "key", "keys", "image", or "choice"
     choices: tuple[tuple[str, str | None], ...] = ()  # (label, stored value); the first is default
 
 
@@ -66,8 +67,8 @@ _FIELDS: dict[StepType, list[FieldSpec]] = {
         FieldSpec("env_var", "Or environment variable", "text"),
         *_TARGET,
     ],
-    StepType.PRESS_KEY: [FieldSpec("key", "Key", "text")],
-    StepType.HOTKEY: [FieldSpec("keys", "Keys (e.g. ctrl+c)", "keys")],
+    StepType.PRESS_KEY: [FieldSpec("key", "Key (pick one or type it)", "key")],
+    StepType.HOTKEY: [FieldSpec("keys", "Keys (e.g. win+d, ctrl+c)", "keys")],
     StepType.SCROLL: [FieldSpec("clicks", "Clicks (+ up, - down)", "int"), *_TARGET],
     StepType.WAIT_SECONDS: [FieldSpec("seconds", "Seconds", "float")],
     StepType.WAIT_FOR_IMAGE: _IMAGE_ONLY,
@@ -98,8 +99,11 @@ def _parse(spec: FieldSpec, raw: str) -> Any:
             return float(text)
         except ValueError:
             raise ValidationError(f"{spec.label}: must be a number") from None
+    if spec.kind == "key":
+        return canonical_key(text)
     if spec.kind == "keys":
-        return tuple(part.strip() for part in text.replace(",", "+").split("+") if part.strip())
+        parts = (part.strip() for part in text.replace(",", "+").split("+"))
+        return tuple(canonical_key(part) for part in parts if part)
     return text
 
 
