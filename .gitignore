@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local example programs, not part of this project
+TestPrograms/
+
+# Saved automations and captured screenshots stay on this machine
+automations/
+*.capture.png
+
+# Local config
+.env
+.vscode/
+.idea/

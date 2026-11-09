@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=80"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "guiautomation"
+version = "0.1.0"
+description = "Build and run step-by-step PyAutoGUI tests for desktop programs."
+readme = "README.md"
+requires-python = ">=3.13"
+license = { text = "All rights reserved" }
+dependencies = [
+    "mss==10.2.0",
+    "numpy==2.5.4",
+    "opencv-python-headless==5.0.0.93",
+    "pillow==13.0.0",
+    "PyAutoGUI==0.9.54",
+]
+
+[project.optional-dependencies]
+dev = ["pytest==9.2.0", "ruff==0.17.4"]
+
+[project.scripts]
+guiautomation = "guiautomation.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+extend-exclude = ["TestPrograms"]
