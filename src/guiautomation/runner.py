@@ -62,6 +62,11 @@ class StepResult:
     status: Status
     message: str = ""
     confirmed: bool | None = None  # The user's answer in a guided run
+    name: str = ""  # The name the user gave the step
+
+    @property
+    def title(self) -> str:
+        return f"{self.name} ({self.step_type.value})" if self.name else self.step_type.value
 
 
 @dataclass
@@ -91,12 +96,11 @@ class RunResult:
                 f"Loops completed: {self.loops_completed} (steps below are from loop "
                 f"{self.iterations})"
             )
-        lines += [
-            f"  {s.index}. {s.step_type.value}: {s.status.value} - {s.message}" for s in self.steps
-        ]
+        lines += [f"  {s.index}. {s.title}: {s.status.value} - {s.message}" for s in self.steps]
         failure = self.first_failure
         if failure is not None:
-            lines.append(f"Failed at step {failure.index}: {failure.message}")
+            named = f" ({failure.name})" if failure.name else ""
+            lines.append(f"Failed at step {failure.index}{named}: {failure.message}")
         elif self.reason:
             lines.append(f"Reason: {self.reason}")
         return "\n".join(lines)
@@ -130,6 +134,7 @@ class _StepFailed(Exception):
 Confirm = Callable[[Step, StepResult], Confirmation]
 OnStep = Callable[[StepResult], None]
 OnIteration = Callable[[int], None]
+OnStepStart = Callable[[int, Step], None]  # 1-based position, and the step about to run
 
 
 class Runner:
@@ -163,6 +168,7 @@ class Runner:
         on_step: OnStep | None = None,
         repeat: int = 1,
         on_iteration: OnIteration | None = None,
+        on_step_start: OnStepStart | None = None,
     ) -> RunResult:
         """Run every step, ``repeat`` times (0 means until stopped).
 
@@ -179,16 +185,24 @@ class Runner:
             iteration += 1
             if on_iteration is not None:
                 on_iteration(iteration)
-            result = self._run_steps(confirm, on_step)
+            result = self._run_steps(confirm, on_step, on_step_start)
             result.iterations = iteration
             if not result.passed or iteration == repeat:
                 return result
 
-    def _run_steps(self, confirm: Confirm | None, on_step: OnStep | None) -> RunResult:
+    def _run_steps(
+        self,
+        confirm: Confirm | None,
+        on_step: OnStep | None,
+        on_step_start: OnStepStart | None,
+    ) -> RunResult:
         results: list[StepResult] = []
         failed = False
         for index, step in enumerate(self._automation.steps, start=1):
+            if on_step_start is not None:
+                on_step_start(index, step)
             result = self._execute(index, step)
+            result.name = step.description or ""
             if result.status is Status.PASSED and confirm is not None:
                 self._apply_confirmation(result, confirm(step, result))
             results.append(result)
@@ -362,6 +376,7 @@ def run_automation(
     stop_on_failure: bool = True,
     repeat: int | None = None,
     on_iteration: OnIteration | None = None,
+    on_step_start: OnStepStart | None = None,
 ) -> RunResult:
     """Run a test file or Automation and return the result.
 
@@ -390,7 +405,12 @@ def run_automation(
             stop_on_failure=stop_on_failure,
         )
         return runner.run(
-            delay=delay, confirm=confirm, on_step=on_step, repeat=loops, on_iteration=on_iteration
+            delay=delay,
+            confirm=confirm,
+            on_step=on_step,
+            repeat=loops,
+            on_iteration=on_iteration,
+            on_step_start=on_step_start,
         )
 
     if abort is not None:

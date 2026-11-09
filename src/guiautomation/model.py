@@ -59,6 +59,11 @@ class Step:
     seconds: float | None = None
     if_not_found: str | None = None  # None stops the run as failed; see KEEP_LOOKING.
 
+    @property
+    def label(self) -> str:
+        """Return what to call this step: its name, or else its type."""
+        return self.description or self.type.value.replace("_", " ")
+
 
 KEEP_LOOKING = "keep_looking"  # Search with no time limit instead of failing the step.
 
@@ -187,8 +192,11 @@ def validate_step(step: Step, where: str = "step") -> None:
         value = getattr(step, spec.name)
         if spec.name not in allowed and value is not None and value is not False:
             _fail(where, f"field {spec.name!r} is not valid for {step.type.value}")
-    if step.description is not None and not isinstance(step.description, str):
-        _fail(where, "description must be a string")
+    if step.description is not None:
+        if not isinstance(step.description, str):
+            _fail(where, "description must be a string")
+        if _SECRET_LITERAL.search(step.description):
+            _fail(where, "the step name looks like it contains a secret")
     _validate_target(step, where)
     if step.type is StepType.TYPE_TEXT:
         _validate_type_text(step, where)

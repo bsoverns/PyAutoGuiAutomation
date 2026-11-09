@@ -8,7 +8,7 @@ import sys
 from collections.abc import Sequence
 
 from guiautomation import screen
-from guiautomation.model import REPEAT_FOREVER, ValidationError, load_automation
+from guiautomation.model import REPEAT_FOREVER, Step, ValidationError, load_automation
 from guiautomation.runner import (
     EXIT_ABORTED,
     EXIT_BAD_INPUT,
@@ -52,6 +52,10 @@ def _announce_loop(iteration: int) -> None:
         print(f"Starting loop {iteration}. Press Ctrl+Alt+Shift+Q to stop.", flush=True)
 
 
+def _announce_step(index: int, step: Step) -> None:
+    print(f"Step {index}: {step.label}", flush=True)
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="guiautomation", description="Build and run step-by-step GUI tests."
@@ -88,7 +92,13 @@ def _run_command(args: argparse.Namespace) -> int:
         print(f"Starting in {delay:g} s. Press Ctrl+Alt+Shift+Q to abort.", flush=True)
     repeat = REPEAT_FOREVER if args.forever else args.repeat
     try:
-        result = run_automation(args.file, delay=delay, repeat=repeat, on_iteration=_announce_loop)
+        result = run_automation(
+            args.file,
+            delay=delay,
+            repeat=repeat,
+            on_iteration=_announce_loop,
+            on_step_start=_announce_step,
+        )
         print(result.summary())
     except ValidationError as exc:
         print(f"error: {exc}", file=sys.stderr)

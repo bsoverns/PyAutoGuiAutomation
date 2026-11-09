@@ -148,7 +148,7 @@ def test_describe_shows_env_var_name_only() -> None:
         (Step(StepType.DRAG, x=1, y=2, to_x=3, to_y=4), "to (3, 4)"),
         (Step(StepType.HOTKEY, keys=("ctrl", "c")), "ctrl+c"),
         (Step(StepType.WAIT_SECONDS, seconds=2), "2 s"),
-        (Step(StepType.PRESS_KEY, key="a", description="why"), "# why"),
+        (Step(StepType.PRESS_KEY, key="a", description="why"), "why  (press key: a)"),
     ],
 )
 def test_describe_step(step: Step, expected: str) -> None:

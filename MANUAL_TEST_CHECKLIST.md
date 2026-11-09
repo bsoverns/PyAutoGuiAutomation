@@ -103,6 +103,12 @@ Use a test with a click or type step into Notepad, so you can see when it starts
 - [ ] Set it to **Keep looking until found** and hide the target. Expected: the run waits past the timeout; when you show the target, it clicks it.
 - [ ] Set it to **Keep looking until found** and press Ctrl+Alt+Shift+Q while it waits. Expected: the run ends as aborted.
 
+## 5b. Step names
+
+- [ ] Give a step a name. Expected: it leads that line in the step list.
+- [ ] Press **Clip a click**. Expected: after the clip it asks for a name; leaving it blank still adds the step.
+- [ ] Press **Run**. Expected: the status window names each step as it runs, and the results list the names.
+
 ## 6a. Looping
 
 - [ ] Set **Repeat (times)** to 3 and press **Run**. Expected: a 5 second wait, three loops, and the status window counts them; the results say 3 loops completed.

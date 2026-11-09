@@ -10,7 +10,7 @@ import tkinter as tk
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, messagebox, simpledialog, ttk
 
 from guiautomation import screen
 from guiautomation.export import export_script
@@ -313,11 +313,17 @@ class BuilderApp:
         StepEditor(self, None, lambda step: self._changed(self._steps.add(step, after)))
 
     def _clip_click(self) -> None:
-        """Clip a target from the screen and add a click on it, with no dialog."""
+        """Clip a target from the screen, name the step, and add a click on it."""
         after = self._selected()
 
         def on_saved(relative: str) -> None:
-            self._changed(self._steps.add(Step(type=StepType.CLICK, image=relative), after))
+            name = simpledialog.askstring(
+                "Step name", "What does this click do? (optional)", parent=self.root
+            )
+            step = Step(
+                type=StepType.CLICK, image=relative, description=(name or "").strip() or None
+            )
+            self._changed(self._steps.add(step, after))
 
         self.capture(None, on_saved, lambda: None)
 

@@ -207,7 +207,7 @@ def test_cli_uses_the_saved_repeat(driver: FakeDriver, tmp_path: Path) -> None:
 def test_cli_forever_passes_the_forever_value(tmp_path: Path, monkeypatch) -> None:
     seen: dict = {}
 
-    def fake_run(_path, delay, repeat, on_iteration):
+    def fake_run(_path, delay, repeat, on_iteration, on_step_start):
         seen["repeat"] = repeat
         return run_automation(Automation(steps=[KEY]), delay=delay, **fake_kwargs(FakeClock()))
 
@@ -368,6 +368,7 @@ def test_saving_moves_unsaved_clips_next_to_the_test(gui, monkeypatch, tmp_path)
 
 def test_clip_a_click_adds_a_step(gui, monkeypatch, tmp_path) -> None:
     patch_clipping(gui, monkeypatch, tmp_path)
+    monkeypatch.setattr(gui.app.simpledialog, "askstring", lambda *_a, **_k: None)
     builder = make_builder(gui)
     builder._clip_click()
     builder.root.run_pending()
@@ -424,8 +425,11 @@ def make_loop_run(gui: SimpleNamespace, repeat: int):
 def test_loop_run_shows_progress_and_reports_when_done(gui) -> None:
     run = make_loop_run(gui, 3)
     run._events.put(("loop", 2))
+    run._events.put(("step", (1, Step(StepType.PRESS_KEY, key="a", description="Open menu"))))
     run._poll()
-    assert "Loop 2 of 3" in run._label.configure.call_args.kwargs["text"]
+    text = run._label.configure.call_args.kwargs["text"]
+    assert "Loop 2 of 3" in text
+    assert "Step 1 of 1: Open menu" in text
     assert run.reports == []
     run._events.put(("done", "all good"))
     run._poll()

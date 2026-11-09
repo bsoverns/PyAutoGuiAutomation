@@ -10,7 +10,7 @@ from tkinter import ttk
 from typing import Any
 
 from guiautomation.abort import AbortHotkey
-from guiautomation.gui.logic import describe_loops, loop_status
+from guiautomation.gui.logic import describe_loops, loop_status, step_status
 from guiautomation.model import Automation
 from guiautomation.runner import run_automation
 
@@ -29,6 +29,7 @@ class LoopRun:
         self._on_finished = on_finished
         self._hotkey = AbortHotkey()
         self._events: queue.Queue[tuple[str, Any]] = queue.Queue()
+        self._loop_line = ""
 
         self._window = tk.Toplevel(root)
         self._window.overrideredirect(True)
@@ -59,6 +60,7 @@ class LoopRun:
                 delay=RUN_DELAY,
                 abort=self._hotkey.is_set,
                 on_iteration=lambda number: self._events.put(("loop", number)),
+                on_step_start=lambda index, step: self._events.put(("step", (index, step))),
             )
         except Exception as exc:  # noqa: BLE001 - shown to the user instead of crashing the GUI
             self._events.put(("done", f"Error: {exc}"))
@@ -72,9 +74,13 @@ class LoopRun:
                 if kind == "done":
                     self._finish(payload)
                     return
+                if kind == "loop":
+                    self._loop_line = loop_status(payload, self._automation.repeat)
+                    continue
+                index, step = payload
+                running = step_status(index, len(self._automation.steps), step)
                 self._label.configure(
-                    text=f"{loop_status(payload, self._automation.repeat)}\n"
-                    "Ctrl+Alt+Shift+Q stops the run."
+                    text=f"{self._loop_line}\n{running}\nCtrl+Alt+Shift+Q stops the run."
                 )
         except queue.Empty:
             self._root.after(_POLL_MS, self._poll)

@@ -48,7 +48,7 @@ _NOT_FOUND = FieldSpec(
 )
 _TARGET = [_X, _Y, _IMAGE, _CONFIDENCE, _TIMEOUT, _NOT_FOUND]
 _IMAGE_ONLY = [_IMAGE, _CONFIDENCE, _TIMEOUT, _NOT_FOUND]
-_DESCRIPTION = FieldSpec("description", "Note", "text")
+_DESCRIPTION = FieldSpec("description", "Step name", "text")
 
 _FIELDS: dict[StepType, list[FieldSpec]] = {
     StepType.CLICK: _TARGET,
@@ -77,7 +77,7 @@ _FIELDS: dict[StepType, list[FieldSpec]] = {
 
 def fields_for(step_type: StepType) -> list[FieldSpec]:
     """Return the form fields for a step type."""
-    return [*_FIELDS[step_type], _DESCRIPTION]
+    return [_DESCRIPTION, *_FIELDS[step_type]]
 
 
 def _parse(spec: FieldSpec, raw: str) -> Any:
@@ -172,6 +172,11 @@ def loop_status(iteration: int, repeat: int) -> str:
     return f"Loop {iteration} of {repeat}"
 
 
+def step_status(index: int, total: int, step: Step) -> str:
+    """Return the line naming the step that is running. Never shows typed values."""
+    return f"Step {index} of {total}: {step.label}"
+
+
 def _describe_target(step: Step) -> str:
     if step.image is not None:
         until = ", until found" if step.if_not_found == KEEP_LOOKING else ""
@@ -199,8 +204,8 @@ def describe_step(step: Step) -> str:
         detail = f"{step.seconds:g} s"
     else:
         detail = _describe_target(step)
-    note = f"  # {step.description}" if step.description else ""
-    return f"{kind}: {detail}{note}"
+    summary = f"{kind}: {detail}"
+    return f"{step.description}  ({summary})" if step.description else summary
 
 
 class StepList:
