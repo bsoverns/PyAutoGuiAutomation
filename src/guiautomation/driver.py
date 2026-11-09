@@ -17,6 +17,7 @@ from ctypes import wintypes
 from typing import Any, Protocol
 
 from guiautomation import screen
+from guiautomation.keys import canonical_key
 
 _INPUT_KEYBOARD = 1
 _KEYEVENTF_KEYUP = 0x2
@@ -203,7 +204,7 @@ class PyAutoGuiDriver:
             self._sleep(_UNICODE_CHUNK_PAUSE)
 
     def _normalize_key(self, key: str) -> str:
-        name = key.lower() if len(key) > 1 else key
+        name = canonical_key(key)
         if not self._gui().isValidKey(name):
             raise DriverError(f"unknown key: {key}")
         return name

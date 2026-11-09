@@ -79,6 +79,10 @@ Build a short test: click in Notepad, type `hello`, press Enter, wait 1 second.
 - [ ] Type non-ASCII text such as `Grüße café naïve 日本語 😀`. Expected: exactly the same characters appear, in the same order.
 - [ ] Type text with a line break (a newline). Expected: Enter is pressed and a new line starts.
 - [ ] Press key `enter`, then hotkey `ctrl+a`. Expected: a new line, then everything selected.
+- [ ] Add a press key step and pick **Windows key (win)** from the Key list. Expected: the field shows `win`; when run, the Start menu opens. Press Esc to close it.
+- [ ] Add a hotkey step, pick **Windows key (win)** from **Add a key**, then type `+d`. Expected: the field shows `win+d`; when run, the desktop is shown. Run it again to restore the windows.
+- [ ] Add a hotkey step, type `ctrl`, then pick **Shift** and **Esc** from **Add a key**. Expected: the field shows `ctrl+shift+esc`; when run, Task Manager opens.
+- [ ] Type `Windows` in the Key field of a press key step and save. Expected: the step list shows `win`.
 - [ ] Click a captured image target. Expected: the click lands on the centre of the matching area.
 - [ ] Wait for image: show the target after 3 seconds. Expected: the step passes once it appears. With a target that never appears and a short timeout: the step fails, and the output names the step.
 - [ ] Assert image visible with the image present, then absent. Expected: passes, then fails.

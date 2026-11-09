@@ -13,6 +13,7 @@ CLI / run_automation() --> Runner --> Driver (pyautogui) + Screen (mss + OpenCV)
 | `model.py` | `StepType`, `Step`, `Automation`; validation; JSON save and load; rejects secret-looking literal text |
 | `screen.py` | `enable_dpi_awareness`, `Monitor`, `list_monitors`, `grab_region`, `find_image` over the virtual desktop |
 | `driver.py` | `Driver` protocol and `PyAutoGuiDriver`, the only module that imports `pyautogui` (lazily) |
+| `keys.py` | Named keys for the builder's key picker, and friendly spellings mapped to PyAutoGUI key names |
 | `abort.py` | Abort hotkey polling (`GetAsyncKeyState` on Windows); no extra dependency |
 | `runner.py` | `Runner`: executes steps, one at a time or all, with a confirm callback; `StepResult`, `RunResult`; `run_automation()` |
 | `export.py` | Generates a runnable `.py` that calls `run_automation` on its embedded steps |
