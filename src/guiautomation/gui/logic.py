@@ -11,6 +11,7 @@ from typing import Any
 
 from guiautomation.model import (
     DEFAULT_CONFIDENCE,
+    KEEP_LOOKING,
     REPEAT_FOREVER,
     Step,
     StepType,
@@ -28,7 +29,8 @@ IMAGE_FOLDER = "images"
 class FieldSpec:
     name: str
     label: str
-    kind: str  # "int", "float", "text", "keys", or "image"
+    kind: str  # "int", "float", "text", "keys", "image", or "choice"
+    choices: tuple[tuple[str, str | None], ...] = ()  # (label, stored value); the first is default
 
 
 _X = FieldSpec("x", "X (screen)", "int")
@@ -38,8 +40,14 @@ _CONFIDENCE = FieldSpec(
     "confidence", f"Confidence (1 = exact, lower = looser, blank = {DEFAULT_CONFIDENCE:g})", "float"
 )
 _TIMEOUT = FieldSpec("timeout", "Timeout (s)", "float")
-_TARGET = [_X, _Y, _IMAGE, _CONFIDENCE, _TIMEOUT]
-_IMAGE_ONLY = [_IMAGE, _CONFIDENCE, _TIMEOUT]
+_NOT_FOUND = FieldSpec(
+    "if_not_found",
+    "If the image is not found",
+    "choice",
+    (("Stop the run as failed", None), ("Keep looking until found", KEEP_LOOKING)),
+)
+_TARGET = [_X, _Y, _IMAGE, _CONFIDENCE, _TIMEOUT, _NOT_FOUND]
+_IMAGE_ONLY = [_IMAGE, _CONFIDENCE, _TIMEOUT, _NOT_FOUND]
 _DESCRIPTION = FieldSpec("description", "Note", "text")
 
 _FIELDS: dict[StepType, list[FieldSpec]] = {
@@ -73,6 +81,8 @@ def fields_for(step_type: StepType) -> list[FieldSpec]:
 
 
 def _parse(spec: FieldSpec, raw: str) -> Any:
+    if spec.kind == "choice":
+        return dict(spec.choices).get(raw)
     if spec.kind == "text" and spec.name == "text":
         return raw if raw else None
     text = raw.strip()
@@ -112,7 +122,9 @@ def step_to_form(step: Step) -> dict[str, str]:
     form: dict[str, str] = {}
     for spec in fields_for(step.type):
         value = getattr(step, spec.name)
-        if value is None:
+        if spec.kind == "choice":
+            form[spec.name] = next(label for label, kept in spec.choices if kept == value)
+        elif value is None:
             form[spec.name] = ""
         elif spec.kind == "keys":
             form[spec.name] = "+".join(value)
@@ -162,7 +174,8 @@ def loop_status(iteration: int, repeat: int) -> str:
 
 def _describe_target(step: Step) -> str:
     if step.image is not None:
-        return f"image {step.image}"
+        until = ", until found" if step.if_not_found == KEEP_LOOKING else ""
+        return f"image {step.image}{until}"
     if step.x is not None:
         return f"({step.x}, {step.y})"
     return ""

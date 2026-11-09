@@ -25,6 +25,8 @@ The builder adds, edits, deletes and reorders steps. Step types: click, double c
 
 **Confidence** is how closely the screen must match a clip. It uses the same scale as PyAutoGUI's `confidence=`: `1` is pixel-identical, around `0.8` tolerates small rendering differences, and values near `0.4` are very loose. Below about `0.5`, parts of the screen that merely resemble the clip can qualify. `0` means no resemblance at all, so it is not accepted. If you leave it blank, `0.8` is used. When several places qualify, the best match is chosen.
 
+**If the image is not found** is set per step. **Stop the run as failed** is the default: the step searches until its timeout (10 seconds if blank), then fails and ends the run. **Keep looking until found** ignores the timeout and searches for as long as it takes, until the image appears or you stop the run.
+
 Clicks glide to the target over 0.5 seconds before clicking, so the program sees the mouse arrive.
 
 **Replacing steps:** select a step and use **Edit / replace** (or double-click it) to change anything about it in place, including its type, text or clip. **Replace clip** clips a new target for the selected step and keeps its other settings.

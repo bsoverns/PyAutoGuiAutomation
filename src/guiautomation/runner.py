@@ -16,6 +16,7 @@ from guiautomation.model import (
     DEFAULT_CONFIDENCE,
     DEFAULT_DRAG_DURATION,
     DEFAULT_TIMEOUT,
+    KEEP_LOOKING,
     Automation,
     Step,
     StepType,
@@ -315,6 +316,9 @@ class Runner:
             match = self._screen.find_image(path, confidence)
             if match is not None:
                 return match
+            if step.if_not_found == KEEP_LOOKING:
+                self._wait(_IMAGE_POLL_INTERVAL)
+                continue
             remaining = deadline - self._clock()
             if remaining <= 0:
                 raise _StepFailed(f"image {step.image} not found within {timeout:g} s")

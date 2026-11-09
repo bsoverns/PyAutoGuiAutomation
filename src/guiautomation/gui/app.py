@@ -96,6 +96,13 @@ class StepEditor:
             self._entries[spec.name] = variable
             if spec.kind == "image":
                 self._build_image_row(row, variable)
+            elif spec.kind == "choice":
+                labels = [label for label, _ in spec.choices]
+                variable.set(variable.get() or labels[0])
+                box = ttk.Combobox(
+                    self._form, textvariable=variable, values=labels, state="readonly", width=42
+                )
+                box.grid(row=row, column=1, padx=4, sticky="w")
             else:
                 entry = ttk.Entry(self._form, textvariable=variable, width=44)
                 entry.grid(row=row, column=1, padx=4)

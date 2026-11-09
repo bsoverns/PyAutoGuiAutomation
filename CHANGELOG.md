@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Each image step can stop the run as failed when its image is missing, or keep looking until it is found.
 - New, Open, Save, Save as and Export script buttons along the top of the builder, with Ctrl+S and Ctrl+O. The file dialogs start in the `automations` folder.
 - Clicks glide to their target over 0.5 seconds before clicking.
 - The default image confidence is now 0.8, and the step editor explains the scale.

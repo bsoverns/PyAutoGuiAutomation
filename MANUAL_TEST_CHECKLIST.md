@@ -97,6 +97,12 @@ Use a test with a click or type step into Notepad, so you can see when it starts
 - [ ] Export a test to a `.py` file and run it with no option, with `--delay 2` and with `--no-delay`. Expected: same delay behaviour and exit codes as above.
 - [ ] Open the exported `.py` file. Expected: it contains no secret values.
 
+## 5a. If the image is not found
+
+- [ ] Set a click step to **Stop the run as failed** with a target that is not on screen. Expected: after its timeout the run stops and names the step.
+- [ ] Set it to **Keep looking until found** and hide the target. Expected: the run waits past the timeout; when you show the target, it clicks it.
+- [ ] Set it to **Keep looking until found** and press Ctrl+Alt+Shift+Q while it waits. Expected: the run ends as aborted.
+
 ## 6a. Looping
 
 - [ ] Set **Repeat (times)** to 3 and press **Run**. Expected: a 5 second wait, three loops, and the status window counts them; the results say 3 loops completed.

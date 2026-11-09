@@ -57,10 +57,13 @@ class Step:
     keys: tuple[str, ...] | None = None
     clicks: int | None = None
     seconds: float | None = None
+    if_not_found: str | None = None  # None stops the run as failed; see KEEP_LOOKING.
 
 
-_TARGET = {"x", "y", "image", "confidence", "timeout"}
-_IMAGE = {"image", "confidence", "timeout"}
+KEEP_LOOKING = "keep_looking"  # Search with no time limit instead of failing the step.
+
+_TARGET = {"x", "y", "image", "confidence", "timeout", "if_not_found"}
+_IMAGE = {"image", "confidence", "timeout", "if_not_found"}
 _ALLOWED_FIELDS: dict[StepType, set[str]] = {
     StepType.CLICK: _TARGET,
     StepType.DOUBLE_CLICK: _TARGET,
@@ -145,6 +148,11 @@ def _validate_target(step: Step, where: str) -> None:
         _fail(where, "needs a target: x and y, or an image")
     elif step.type in _IMAGE_REQUIRED:
         _fail(where, "needs an image")
+    if step.if_not_found is not None:
+        if step.if_not_found != KEEP_LOOKING:
+            _fail(where, f"if_not_found must be {KEEP_LOOKING!r} or left out")
+        if step.image is None:
+            _fail(where, "keep looking until found needs an image")
     if step.confidence is not None:
         _check_number(step.confidence, where, "confidence")
         if not 0 < step.confidence <= 1:
