@@ -1,0 +1,239 @@
+"""GUI behavior as plain code, so it can be tested without a display."""
+
+from __future__ import annotations
+
+import queue
+from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import datetime
+from pathlib import PurePosixPath
+from typing import Any
+
+from guiautomation.model import Step, StepType, ValidationError, validate_step
+from guiautomation.runner import Confirmation, RunResult, StepResult
+from guiautomation.screen import Monitor
+
+MIN_REGION_SIZE = 5
+IMAGE_FOLDER = "images"
+
+
+@dataclass(frozen=True)
+class FieldSpec:
+    name: str
+    label: str
+    kind: str  # "int", "float", "text", "keys", or "image"
+
+
+_X = FieldSpec("x", "X (screen)", "int")
+_Y = FieldSpec("y", "Y (screen)", "int")
+_IMAGE = FieldSpec("image", "Image", "image")
+_CONFIDENCE = FieldSpec("confidence", "Confidence (0-1)", "float")
+_TIMEOUT = FieldSpec("timeout", "Timeout (s)", "float")
+_TARGET = [_X, _Y, _IMAGE, _CONFIDENCE, _TIMEOUT]
+_IMAGE_ONLY = [_IMAGE, _CONFIDENCE, _TIMEOUT]
+_DESCRIPTION = FieldSpec("description", "Note", "text")
+
+_FIELDS: dict[StepType, list[FieldSpec]] = {
+    StepType.CLICK: _TARGET,
+    StepType.DOUBLE_CLICK: _TARGET,
+    StepType.RIGHT_CLICK: _TARGET,
+    StepType.MOVE: _TARGET,
+    StepType.DRAG: [
+        *_TARGET,
+        FieldSpec("to_x", "To X", "int"),
+        FieldSpec("to_y", "To Y", "int"),
+        FieldSpec("duration", "Duration (s)", "float"),
+    ],
+    StepType.TYPE_TEXT: [
+        FieldSpec("text", "Text (not for secrets)", "text"),
+        FieldSpec("env_var", "Or environment variable", "text"),
+        *_TARGET,
+    ],
+    StepType.PRESS_KEY: [FieldSpec("key", "Key", "text")],
+    StepType.HOTKEY: [FieldSpec("keys", "Keys (e.g. ctrl+c)", "keys")],
+    StepType.SCROLL: [FieldSpec("clicks", "Clicks (+ up, - down)", "int"), *_TARGET],
+    StepType.WAIT_SECONDS: [FieldSpec("seconds", "Seconds", "float")],
+    StepType.WAIT_FOR_IMAGE: _IMAGE_ONLY,
+    StepType.ASSERT_IMAGE_VISIBLE: _IMAGE_ONLY,
+}
+
+
+def fields_for(step_type: StepType) -> list[FieldSpec]:
+    """Return the form fields for a step type."""
+    return [*_FIELDS[step_type], _DESCRIPTION]
+
+
+def _parse(spec: FieldSpec, raw: str) -> Any:
+    if spec.kind == "text" and spec.name == "text":
+        return raw if raw else None
+    text = raw.strip()
+    if not text:
+        return None
+    if spec.kind == "int":
+        try:
+            return int(text)
+        except ValueError:
+            raise ValidationError(f"{spec.label}: must be a whole number") from None
+    if spec.kind == "float":
+        try:
+            return float(text)
+        except ValueError:
+            raise ValidationError(f"{spec.label}: must be a number") from None
+    if spec.kind == "keys":
+        return tuple(part.strip() for part in text.replace(",", "+").split("+") if part.strip())
+    return text
+
+
+def step_from_form(step_type: StepType, form: dict[str, str], previous: Step | None = None) -> Step:
+    """Build a validated Step from form strings. Blank fields are unset."""
+    values = {spec.name: _parse(spec, form.get(spec.name, "")) for spec in fields_for(step_type)}
+    keep_secret = (
+        previous is not None
+        and previous.type is step_type
+        and previous.secret
+        and values.get("env_var") is not None
+    )
+    step = Step(type=step_type, secret=keep_secret, **values)
+    validate_step(step, step_type.value)
+    return step
+
+
+def step_to_form(step: Step) -> dict[str, str]:
+    """Return form strings for a step."""
+    form: dict[str, str] = {}
+    for spec in fields_for(step.type):
+        value = getattr(step, spec.name)
+        if value is None:
+            form[spec.name] = ""
+        elif spec.kind == "keys":
+            form[spec.name] = "+".join(value)
+        else:
+            form[spec.name] = str(value)
+    return form
+
+
+def _describe_target(step: Step) -> str:
+    if step.image is not None:
+        return f"image {step.image}"
+    if step.x is not None:
+        return f"({step.x}, {step.y})"
+    return ""
+
+
+def describe_step(step: Step) -> str:
+    """Return a one-line summary for the step list. Never shows an environment value."""
+    kind = step.type.value.replace("_", " ")
+    if step.type is StepType.TYPE_TEXT:
+        what = f"${step.env_var}" if step.env_var else repr(step.text)
+        detail = f"{what} {_describe_target(step)}".strip()
+    elif step.type is StepType.DRAG:
+        detail = f"{_describe_target(step)} to ({step.to_x}, {step.to_y})"
+    elif step.type is StepType.PRESS_KEY:
+        detail = str(step.key)
+    elif step.type is StepType.HOTKEY:
+        detail = "+".join(step.keys or ())
+    elif step.type is StepType.SCROLL:
+        detail = f"{step.clicks} {_describe_target(step)}".strip()
+    elif step.type is StepType.WAIT_SECONDS:
+        detail = f"{step.seconds:g} s"
+    else:
+        detail = _describe_target(step)
+    note = f"  # {step.description}" if step.description else ""
+    return f"{kind}: {detail}{note}"
+
+
+class StepList:
+    """Editing operations on a list of steps. Methods return the new selection."""
+
+    def __init__(self, steps: list[Step] | None = None) -> None:
+        self.steps: list[Step] = steps if steps is not None else []
+
+    def add(self, step: Step, after: int | None = None) -> int:
+        index = len(self.steps) if after is None else after + 1
+        self.steps.insert(index, step)
+        return index
+
+    def replace(self, index: int, step: Step) -> int:
+        self.steps[index] = step
+        return index
+
+    def delete(self, index: int) -> int | None:
+        del self.steps[index]
+        return min(index, len(self.steps) - 1) if self.steps else None
+
+    def move_up(self, index: int) -> int:
+        if index <= 0:
+            return index
+        self.steps[index - 1], self.steps[index] = self.steps[index], self.steps[index - 1]
+        return index - 1
+
+    def move_down(self, index: int) -> int:
+        if index >= len(self.steps) - 1:
+            return index
+        self.steps[index + 1], self.steps[index] = self.steps[index], self.steps[index + 1]
+        return index + 1
+
+
+@dataclass(frozen=True)
+class Region:
+    left: int
+    top: int
+    width: int
+    height: int
+
+
+def overlay_geometry(desktop: Monitor) -> str:
+    """Return a Tk geometry string; Tk reads "+-1920" as an offset left of the origin."""
+    return f"{desktop.width}x{desktop.height}+{desktop.left}+{desktop.top}"
+
+
+def to_canvas(x_root: int, y_root: int, desktop: Monitor) -> tuple[int, int]:
+    """Convert virtual-desktop coordinates to overlay canvas coordinates."""
+    return x_root - desktop.left, y_root - desktop.top
+
+
+def drag_to_region(x0: int, y0: int, x1: int, y1: int, desktop: Monitor) -> Region | None:
+    """Turn a drag, in virtual-desktop coordinates, into a region clamped to the desktop."""
+    left = max(min(x0, x1), desktop.left)
+    top = max(min(y0, y1), desktop.top)
+    right = min(max(x0, x1), desktop.right)
+    bottom = min(max(y0, y1), desktop.bottom)
+    if right - left < MIN_REGION_SIZE or bottom - top < MIN_REGION_SIZE:
+        return None
+    return Region(left, top, right - left, bottom - top)
+
+
+def capture_filename(now: datetime) -> str:
+    """Return a relative path for a new capture. The suffix is gitignored."""
+    name = f"{now:%Y%m%d-%H%M%S-%f}.capture.png"
+    return str(PurePosixPath(IMAGE_FOLDER) / name)
+
+
+class GuidedBridge:
+    """Passes confirm requests from the worker thread to the UI thread and back."""
+
+    def __init__(self, abort: Callable[[], bool] = lambda: False, poll: float = 0.05) -> None:
+        self.events: queue.Queue[tuple[str, Any]] = queue.Queue()
+        self._answers: queue.Queue[Confirmation] = queue.Queue()
+        self._abort = abort
+        self._poll = poll
+
+    def confirm(self, step: Step, result: StepResult) -> Confirmation:
+        """Called on the worker thread: ask the user, and wait for the answer or an abort."""
+        self.events.put(("confirm", (step, result)))
+        while True:
+            try:
+                return self._answers.get(timeout=self._poll)
+            except queue.Empty:
+                if self._abort():
+                    return Confirmation.STOP
+
+    def answer(self, confirmation: Confirmation) -> None:
+        """Called on the UI thread with the user's choice."""
+        self._answers.put(confirmation)
+
+    def finish(self, result: RunResult) -> None:
+        self.events.put(("done", result))
+
+    def fail(self, message: str) -> None:
+        self.events.put(("error", message))
