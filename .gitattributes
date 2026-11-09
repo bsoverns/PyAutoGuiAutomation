@@ -1,0 +1,2 @@
+# Batch files need Windows line endings on every machine, whatever Git is set to.
+*.bat text eol=crlf
