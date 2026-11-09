@@ -43,9 +43,14 @@ Then:
 
 ## 3. Capture a region (AC3)
 
-- [ ] In a click step, press Capture. Expected: the builder hides and a dim overlay covers the whole screen.
+- [ ] On a new, unsaved test, add a click step and press **Clip from screen**. Expected: no file dialog; the builder hides and a dim overlay covers the whole screen.
 - [ ] Drag a region around a Notepad button or title. Expected: the overlay closes, the builder returns, and the step shows an image path under `images/` next to the test file.
-- [ ] Press Capture then Esc. Expected: nothing is captured and the builder returns unchanged.
+- [ ] The clip appears as a preview in the step editor, and the button now says **Replace clip**.
+- [ ] Press **Clip a click** in the main window and drag a region. Expected: a click step is added with no dialog.
+- [ ] Select a step and press **Replace clip**. Expected: the target changes and the step's other settings stay.
+- [ ] Use **Edit / replace** to change a step's text, then its type. Expected: it changes in place, in the same position.
+- [ ] Clip on an unsaved test, then save it elsewhere and reopen it. Expected: the clips are in `images/` next to the test.
+- [ ] Press Clip from screen then Esc. Expected: nothing is captured and the builder returns unchanged.
 - [ ] Make a tiny accidental drag (a few pixels). Expected: it is ignored, no image is saved.
 - [ ] Drag from right to left and bottom to top. Expected: the region is still captured correctly.
 - [ ] Open the saved PNG. Expected: it shows exactly the area you selected, and not the builder window or the overlay.
@@ -91,6 +96,14 @@ Use a test with a click or type step into Notepad, so you can see when it starts
 - [ ] Run a test with a deliberately failing step. Expected: the output names the step and the reason.
 - [ ] Export a test to a `.py` file and run it with no option, with `--delay 2` and with `--no-delay`. Expected: same delay behaviour and exit codes as above.
 - [ ] Open the exported `.py` file. Expected: it contains no secret values.
+
+## 6a. Looping
+
+- [ ] Set **Repeat (times)** to 3 and press **Run**. Expected: a 5 second wait, three loops, and the status window counts them; the results say 3 loops completed.
+- [ ] Tick **Forever** and press **Run**, then press Ctrl+Alt+Shift+Q, or **Stop** in the status window. Expected: it stops and the builder comes back.
+- [ ] Save and reopen the test. Expected: the Repeat setting is restored.
+- [ ] Make a step fail partway through a loop. Expected: looping stops and the failing step is named.
+- [ ] `guiautomation run automations\test.json --repeat 3 --no-delay`, then `--forever`. Expected: 3 loops, then loops until stopped with exit code 3.
 
 ## 7. Called from another program (AC7)
 

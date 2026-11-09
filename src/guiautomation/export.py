@@ -20,31 +20,35 @@ import sys
 from pathlib import Path
 
 from guiautomation.cli import make_output_safe
-from guiautomation.model import ValidationError, automation_from_dict
+from guiautomation.model import REPEAT_FOREVER, ValidationError, automation_from_dict
 from guiautomation.runner import EXIT_ABORTED, EXIT_BAD_INPUT, exit_code_for, run_automation
 
 AUTOMATION_JSON = {automation_json}
 DELAY_SECONDS = {delay}
 
 
-def parse_delay(argv: list[str] | None) -> float:
+def parse_options(argv: list[str] | None) -> tuple[float, int | None]:
     parser = argparse.ArgumentParser(description="Run this exported test.")
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--no-delay", action="store_true", help="start immediately")
     group.add_argument("--delay", type=float, metavar="N", help="seconds to wait before starting")
+    loops = parser.add_mutually_exclusive_group()
+    loops.add_argument("--repeat", type=int, metavar="N", help="run the test N times")
+    loops.add_argument("--forever", action="store_true", help="repeat until stopped or a failure")
     args = parser.parse_args(argv)
-    if args.no_delay:
-        return 0.0
-    return DELAY_SECONDS if args.delay is None else args.delay
+    if args.repeat is not None and args.repeat < 1:
+        parser.error("--repeat must be 1 or more; use --forever for no limit")
+    delay = 0.0 if args.no_delay else DELAY_SECONDS if args.delay is None else args.delay
+    return delay, REPEAT_FOREVER if args.forever else args.repeat
 
 
 def main(argv: list[str] | None = None) -> int:
     make_output_safe()
-    delay = parse_delay(argv)
+    delay, repeat = parse_options(argv)
     base_dir = {base_dir}
     try:
         automation = automation_from_dict(json.loads(AUTOMATION_JSON), base_dir)
-        result = run_automation(automation, delay=delay)
+        result = run_automation(automation, delay=delay, repeat=repeat)
     except ValidationError as exc:
         print(f"error: {{exc}}", file=sys.stderr)
         return EXIT_BAD_INPUT

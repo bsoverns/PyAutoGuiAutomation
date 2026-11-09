@@ -239,12 +239,22 @@ def step_to_dict(step: Step) -> dict[str, Any]:
     return data
 
 
+REPEAT_FOREVER = 0  # A repeat count that means "until stopped".
+
+
+def validate_repeat(value: Any) -> None:
+    """Raise ValidationError unless value is a loop count or REPEAT_FOREVER."""
+    if type(value) is not int or value < 0:
+        _fail("repeat", "must be a whole number, 1 or more, or 0 to repeat forever")
+
+
 @dataclass
 class Automation:
     name: str = ""
     steps: list[Step] = field(default_factory=list)
     base_dir: Path | None = None
     version: int = FORMAT_VERSION
+    repeat: int = 1
 
     def validate(self) -> None:
         """Raise ValidationError if the automation or any step is invalid."""
@@ -252,6 +262,7 @@ class Automation:
             _fail("name", "must be a string")
         if type(self.version) is not int or self.version != FORMAT_VERSION:
             _fail("version", f"unsupported version {self.version!r}; expected {FORMAT_VERSION}")
+        validate_repeat(self.repeat)
         for index, step in enumerate(self.steps):
             validate_step(step, f"steps[{index}]")
 
@@ -284,7 +295,7 @@ def automation_from_dict(data: Any, base_dir: Path | None = None) -> Automation:
     """Build a validated Automation from parsed JSON."""
     if not isinstance(data, dict):
         raise ValidationError("top level must be an object")
-    unknown = sorted(set(data) - {"version", "name", "steps"})
+    unknown = sorted(set(data) - {"version", "name", "steps", "repeat"})
     if unknown:
         raise ValidationError(f"unknown top-level field(s): {', '.join(unknown)}")
     if "version" not in data:
@@ -295,7 +306,11 @@ def automation_from_dict(data: Any, base_dir: Path | None = None) -> Automation:
         raise ValidationError("steps must be a list")
     steps = [step_from_dict(raw, f"steps[{i}]") for i, raw in enumerate(data["steps"])]
     automation = Automation(
-        name=data.get("name", ""), steps=steps, base_dir=base_dir, version=data["version"]
+        name=data.get("name", ""),
+        steps=steps,
+        base_dir=base_dir,
+        version=data["version"],
+        repeat=data.get("repeat", 1),
     )
     automation.validate()
     return automation
@@ -304,11 +319,11 @@ def automation_from_dict(data: Any, base_dir: Path | None = None) -> Automation:
 def automation_to_dict(automation: Automation) -> dict[str, Any]:
     """Return the JSON form of an automation, validating it first."""
     automation.validate()
-    return {
-        "version": automation.version,
-        "name": automation.name,
-        "steps": [step_to_dict(step) for step in automation.steps],
-    }
+    data: dict[str, Any] = {"version": automation.version, "name": automation.name}
+    if automation.repeat != 1:
+        data["repeat"] = automation.repeat
+    data["steps"] = [step_to_dict(step) for step in automation.steps]
+    return data
 
 
 def _reject_constant(name: str) -> None:

@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Clip targets from the screen while building, with no file dialog on an unsaved test, and see a preview in the step editor. The image field no longer takes a typed path.
+- **Clip a click** adds a click on a new clip in one action.
+- Replace steps in place with **Edit / replace**, and swap a step's target with **Replace clip**.
+- Loop a test a set number of times or forever: saved in the test, set in the builder, or with `--repeat N` and `--forever`.
+- **Run** button in the builder for unattended runs, with a loop status window and a Stop button.
+
 ## 0.1.0
 
 - tkinter test builder with add, edit, delete and reorder, and region capture across all monitors.

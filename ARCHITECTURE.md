@@ -17,7 +17,7 @@ CLI / run_automation() --> Runner --> Driver (pyautogui) + Screen (mss + OpenCV)
 | `runner.py` | `Runner`: executes steps, one at a time or all, with a confirm callback; `StepResult`, `RunResult`; `run_automation()` |
 | `export.py` | Generates a runnable `.py` that calls `run_automation` on its embedded steps |
 | `cli.py` | `guiautomation run` and `guiautomation gui`; delay handling; exit codes |
-| `gui/` | tkinter builder, region-capture overlay, guided run window |
+| `gui/` | tkinter builder, region-capture overlay, guided run window, looping unattended run |
 
 Dependencies are pinned in `pyproject.toml`: PyAutoGUI, mss, numpy, opencv-python-headless, pillow; pytest and ruff for development.
 

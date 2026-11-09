@@ -69,6 +69,7 @@ class GuidedRun:
                 driver=self._driver,
                 abort=self._hotkey.is_set,
                 confirm=self._bridge.confirm,
+                repeat=1,  # Each step is judged once; looping is for the unattended Run.
             )
         except Exception as exc:  # noqa: BLE001 - shown to the user instead of crashing the GUI
             self._bridge.fail(str(exc))

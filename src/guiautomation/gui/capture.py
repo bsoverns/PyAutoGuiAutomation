@@ -33,6 +33,13 @@ class RegionOverlay:
         self._window.attributes("-topmost", True, "-alpha", 0.3)
         self._canvas = tk.Canvas(self._window, bg="black", highlightthickness=0, cursor="crosshair")
         self._canvas.pack(fill="both", expand=True)
+        self._canvas.create_text(
+            *to_canvas(24, 24, desktop),
+            anchor="nw",
+            fill="white",
+            font=("Segoe UI", 20, "bold"),
+            text="Drag a box around the target. Esc cancels.",
+        )
         self._canvas.bind("<ButtonPress-1>", self._press)
         self._canvas.bind("<B1-Motion>", self._drag)
         self._canvas.bind("<ButtonRelease-1>", self._release)

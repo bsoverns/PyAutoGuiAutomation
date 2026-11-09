@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import queue
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import PurePosixPath
 from typing import Any
 
-from guiautomation.model import Step, StepType, ValidationError, validate_step
+from guiautomation.model import REPEAT_FOREVER, Step, StepType, ValidationError, validate_step
 from guiautomation.runner import Confirmation, RunResult, StepResult
 from guiautomation.screen import Monitor
 
@@ -110,6 +110,45 @@ def step_to_form(step: Step) -> dict[str, str]:
         else:
             form[spec.name] = str(value)
     return form
+
+
+def takes_image(step_type: StepType) -> bool:
+    """Return True if steps of this type can target a clipped image."""
+    return any(spec.kind == "image" for spec in fields_for(step_type))
+
+
+def with_clip(step: Step, relative: str) -> Step:
+    """Return the step aimed at a new clip, keeping everything else about it."""
+    updated = replace(step, image=relative, x=None, y=None)
+    validate_step(updated, step.type.value)
+    return updated
+
+
+def parse_repeat(count: str, forever: bool) -> int:
+    """Turn the builder's loop controls into a repeat value."""
+    if forever:
+        return REPEAT_FOREVER
+    try:
+        value = int(count.strip())
+    except ValueError:
+        value = 0
+    if value < 1:
+        raise ValidationError("Repeat: must be a whole number, 1 or more")
+    return value
+
+
+def describe_loops(repeat: int) -> str:
+    """Return a short description of a repeat value for the run status window."""
+    if repeat == REPEAT_FOREVER:
+        return "forever"
+    return f"{repeat} time{'' if repeat == 1 else 's'}"
+
+
+def loop_status(iteration: int, repeat: int) -> str:
+    """Return the progress line shown while a run loops."""
+    if repeat == REPEAT_FOREVER:
+        return f"Loop {iteration} (repeating forever)"
+    return f"Loop {iteration} of {repeat}"
 
 
 def _describe_target(step: Step) -> str:

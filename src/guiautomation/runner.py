@@ -21,6 +21,7 @@ from guiautomation.model import (
     StepType,
     ValidationError,
     load_automation,
+    validate_repeat,
 )
 from guiautomation.screen import Match, MssScreen, Screen
 
@@ -65,12 +66,17 @@ class StepResult:
 @dataclass
 class RunResult:
     status: Status
-    steps: list[StepResult] = field(default_factory=list)
+    steps: list[StepResult] = field(default_factory=list)  # From the last loop only
     reason: str = ""
+    iterations: int = 1  # The loop the run ended on
 
     @property
     def passed(self) -> bool:
         return self.status is Status.PASSED
+
+    @property
+    def loops_completed(self) -> int:
+        return self.iterations if self.passed else self.iterations - 1
 
     @property
     def first_failure(self) -> StepResult | None:
@@ -79,6 +85,11 @@ class RunResult:
     def summary(self) -> str:
         """Return a readable report. It never contains typed values."""
         lines = [f"Result: {self.status.value.upper()} ({len(self.steps)} step(s) run)"]
+        if self.iterations > 1:
+            lines.append(
+                f"Loops completed: {self.loops_completed} (steps below are from loop "
+                f"{self.iterations})"
+            )
         lines += [
             f"  {s.index}. {s.step_type.value}: {s.status.value} - {s.message}" for s in self.steps
         ]
@@ -117,6 +128,7 @@ class _StepFailed(Exception):
 
 Confirm = Callable[[Step, StepResult], Confirmation]
 OnStep = Callable[[StepResult], None]
+OnIteration = Callable[[int], None]
 
 
 class Runner:
@@ -144,14 +156,35 @@ class Runner:
         self._stop_on_failure = stop_on_failure
 
     def run(
-        self, delay: float = 0.0, confirm: Confirm | None = None, on_step: OnStep | None = None
+        self,
+        delay: float = 0.0,
+        confirm: Confirm | None = None,
+        on_step: OnStep | None = None,
+        repeat: int = 1,
+        on_iteration: OnIteration | None = None,
     ) -> RunResult:
-        """Run every step. With ``confirm``, the user judges each step that succeeds."""
-        results: list[StepResult] = []
+        """Run every step, ``repeat`` times (0 means until stopped).
+
+        With ``confirm``, the user judges each step that succeeds. Looping ends at the first
+        loop that fails or is aborted. Only the last loop's step results are kept, so a run
+        that never ends does not keep growing in memory.
+        """
         try:
             self._wait(delay)
         except _Aborted as exc:
-            return RunResult(Status.ABORTED, results, str(exc))
+            return RunResult(Status.ABORTED, [], str(exc))
+        iteration = 0
+        while True:
+            iteration += 1
+            if on_iteration is not None:
+                on_iteration(iteration)
+            result = self._run_steps(confirm, on_step)
+            result.iterations = iteration
+            if not result.passed or iteration == repeat:
+                return result
+
+    def _run_steps(self, confirm: Confirm | None, on_step: OnStep | None) -> RunResult:
+        results: list[StepResult] = []
         failed = False
         for index, step in enumerate(self._automation.steps, start=1):
             result = self._execute(index, step)
@@ -323,16 +356,21 @@ def run_automation(
     confirm: Confirm | None = None,
     on_step: OnStep | None = None,
     stop_on_failure: bool = True,
+    repeat: int | None = None,
+    on_iteration: OnIteration | None = None,
 ) -> RunResult:
     """Run a test file or Automation and return the result.
 
-    Raises ValidationError for bad input (invalid file, missing image, bad delay).
+    ``repeat`` overrides the test's saved loop count; 0 means until stopped.
+    Raises ValidationError for bad input (invalid file, missing image, bad delay or repeat).
     A failing step is reported in the result, not raised.
     """
     if type(delay) not in (int, float) or not math.isfinite(delay) or delay < 0:
         raise ValidationError("delay must be a finite number of seconds, zero or more")
     automation = load_automation(target) if isinstance(target, (str, os.PathLike)) else target
     automation.check_runnable()
+    loops = automation.repeat if repeat is None else repeat
+    validate_repeat(loops)
     if driver is None or screen is None:
         screen_module.enable_dpi_awareness()
 
@@ -347,7 +385,9 @@ def run_automation(
             env=env,
             stop_on_failure=stop_on_failure,
         )
-        return runner.run(delay=delay, confirm=confirm, on_step=on_step)
+        return runner.run(
+            delay=delay, confirm=confirm, on_step=on_step, repeat=loops, on_iteration=on_iteration
+        )
 
     if abort is not None:
         return execute(abort)

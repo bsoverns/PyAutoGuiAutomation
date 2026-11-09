@@ -8,7 +8,7 @@ import sys
 from collections.abc import Sequence
 
 from guiautomation import screen
-from guiautomation.model import ValidationError, load_automation
+from guiautomation.model import REPEAT_FOREVER, ValidationError, load_automation
 from guiautomation.runner import (
     EXIT_ABORTED,
     EXIT_BAD_INPUT,
@@ -37,6 +37,21 @@ def _delay_value(text: str) -> float:
     return value
 
 
+def _repeat_value(text: str) -> int:
+    try:
+        value = int(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"not a whole number: {text}") from None
+    if value < 1:
+        raise argparse.ArgumentTypeError("repeat must be 1 or more; use --forever for no limit")
+    return value
+
+
+def _announce_loop(iteration: int) -> None:
+    if iteration > 1:
+        print(f"Starting loop {iteration}. Press Ctrl+Alt+Shift+Q to stop.", flush=True)
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="guiautomation", description="Build and run step-by-step GUI tests."
@@ -53,6 +68,14 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="N",
         help=f"seconds to wait before starting (default {DEFAULT_DELAY:g})",
     )
+    loops = run.add_mutually_exclusive_group()
+    loops.add_argument(
+        "--repeat",
+        type=_repeat_value,
+        metavar="N",
+        help="run the test N times (default: the count saved in the test)",
+    )
+    loops.add_argument("--forever", action="store_true", help="repeat until stopped or a failure")
 
     gui = commands.add_parser("gui", help="open the test builder")
     gui.add_argument("file", nargs="?", help="test JSON file to open")
@@ -63,8 +86,9 @@ def _run_command(args: argparse.Namespace) -> int:
     delay = 0.0 if args.no_delay else DEFAULT_DELAY if args.delay is None else args.delay
     if delay > 0:
         print(f"Starting in {delay:g} s. Press Ctrl+Alt+Shift+Q to abort.", flush=True)
+    repeat = REPEAT_FOREVER if args.forever else args.repeat
     try:
-        result = run_automation(args.file, delay=delay)
+        result = run_automation(args.file, delay=delay, repeat=repeat, on_iteration=_announce_loop)
         print(result.summary())
     except ValidationError as exc:
         print(f"error: {exc}", file=sys.stderr)

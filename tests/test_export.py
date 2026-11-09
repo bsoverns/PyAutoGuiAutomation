@@ -33,7 +33,7 @@ def test_quotes_and_newlines_compile_and_execute(tmp_path: Path) -> None:
     driver = FakeDriver()
     clock = FakeClock()
 
-    def fake_run(automation, delay):
+    def fake_run(automation, delay, repeat=None):
         assert delay == 5.0
         return run_automation(
             automation,
@@ -80,7 +80,7 @@ def test_exported_script_finds_images_relative_to_the_test(tmp_path: Path) -> No
     script = scripts / "x.py"
     seen = {}
 
-    def fake_run(loaded, delay):
+    def fake_run(loaded, delay, repeat=None):
         seen["base"] = loaded.base_dir
         raise ValidationError("stop here")
 
@@ -92,7 +92,7 @@ def test_exported_script_finds_images_relative_to_the_test(tmp_path: Path) -> No
 def test_exit_code_maps_a_failed_run(tmp_path: Path) -> None:
     source = render_script(automation_with("hi"))
 
-    def fake_run(automation, delay):
+    def fake_run(automation, delay, repeat=None):
         return run_automation(
             automation,
             driver=FakeDriver(fail_on="type_text"),
@@ -106,7 +106,7 @@ def test_exit_code_maps_a_failed_run(tmp_path: Path) -> None:
 def delay_used(tmp_path: Path, argv: list[str]) -> float:
     seen = {}
 
-    def fake_run(automation, delay):
+    def fake_run(automation, delay, repeat=None):
         seen["delay"] = delay
         raise ValidationError("stop here")
 
@@ -128,7 +128,7 @@ def test_exported_script_rejects_conflicting_delay_options(tmp_path: Path) -> No
 
 
 def test_exported_script_maps_ctrl_c_to_aborted(tmp_path: Path) -> None:
-    def fake_run(automation, delay):
+    def fake_run(automation, delay, repeat=None):
         raise KeyboardInterrupt
 
     namespace = exec_script(render_script(automation_with("hi")), tmp_path / "x.py", fake_run)

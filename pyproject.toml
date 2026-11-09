@@ -40,3 +40,4 @@ extend-select = ["BLE"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/test_export.py" = ["S102"]
+"tests/test_looping_and_clips.py" = ["S102"]
