@@ -23,6 +23,7 @@ _KEYEVENTF_KEYUP = 0x2
 _KEYEVENTF_UNICODE = 0x4
 _TYPE_CHUNK = 16  # Characters typed between checks of the abort hotkey and failsafe.
 _UNICODE_CHUNK_PAUSE = 0.01
+CLICK_MOVE_DURATION = 0.5  # Seconds to glide to a click target, so the program sees the hover.
 
 
 class FailSafeAbort(Exception):
@@ -159,6 +160,7 @@ class PyAutoGuiDriver:
         self._call("moveTo", x, y)
 
     def click(self, x: int, y: int, button: str = "left", clicks: int = 1) -> None:
+        self._call("moveTo", x, y, duration=CLICK_MOVE_DURATION)
         interval = 0.05 if clicks > 1 else 0.0
         self._call("click", x=x, y=y, clicks=clicks, interval=interval, button=button)
 

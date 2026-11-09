@@ -14,7 +14,7 @@ from pathlib import Path, PureWindowsPath
 from typing import Any
 
 FORMAT_VERSION = 1
-DEFAULT_CONFIDENCE = 0.9
+DEFAULT_CONFIDENCE = 0.8
 DEFAULT_TIMEOUT = 10.0
 DEFAULT_DRAG_DURATION = 0.2
 

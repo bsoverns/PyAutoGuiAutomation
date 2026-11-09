@@ -84,7 +84,7 @@ def test_image_target_clicks_the_match_in_negative_coordinates(tmp_path: Path) -
     result, calls = run_steps([Step(StepType.CLICK, image="a.png")], tmp_path, screen=screen)
     assert result.passed
     assert calls == [("click", -1500, -40, "left", 1)]
-    assert screen.searches[0][1] == 0.9
+    assert screen.searches[0][1] == 0.8
 
 
 def test_per_step_confidence_reaches_the_screen(tmp_path: Path) -> None:
@@ -422,7 +422,8 @@ def test_driver_passes_negative_coordinates_through() -> None:
     gui = FakePyAutoGui()
     PyAutoGuiDriver(module=gui).click(-1500, -20, button="right")
     assert gui.calls == [
-        ("click", (), {"x": -1500, "y": -20, "clicks": 1, "interval": 0.0, "button": "right"})
+        ("moveTo", (-1500, -20), {"duration": 0.5}),
+        ("click", (), {"x": -1500, "y": -20, "clicks": 1, "interval": 0.0, "button": "right"}),
     ]
 
 

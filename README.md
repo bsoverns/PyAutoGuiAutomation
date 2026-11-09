@@ -19,7 +19,13 @@ guiautomation gui [file.json]
 
 The builder adds, edits, deletes and reorders steps. Step types: click, double click, right click, move, drag, type text, press key, hotkey, scroll, wait seconds, wait for image, and assert image visible. Mouse and typing steps target screen coordinates or a captured image.
 
+**New, Open, Save, Save as and Export script** are the buttons along the top of the builder, and also in the File menu. Ctrl+S saves and Ctrl+O opens. Open a saved test to keep editing it.
+
 **Clip from screen** in the step editor hides the builder and shows an overlay over all monitors; drag a box around the target, or press Esc to cancel. You clip while you build, with no file to choose and no need to save first. **Clip a click** in the main window does the same and adds a click on the clip in one go. Clips are kept in a temporary folder until the first save, then in an `images/` folder next to the test, and paths in the JSON stay relative to it.
+
+**Confidence** is how closely the screen must match a clip. It uses the same scale as PyAutoGUI's `confidence=`: `1` is pixel-identical, around `0.8` tolerates small rendering differences, and values near `0.4` are very loose. Below about `0.5`, parts of the screen that merely resemble the clip can qualify. `0` means no resemblance at all, so it is not accepted. If you leave it blank, `0.8` is used. When several places qualify, the best match is chosen.
+
+Clicks glide to the target over 0.5 seconds before clicking, so the program sees the mouse arrive.
 
 **Replacing steps:** select a step and use **Edit / replace** (or double-click it) to change anything about it in place, including its type, text or clip. **Replace clip** clips a new target for the selected step and keeps its other settings.
 

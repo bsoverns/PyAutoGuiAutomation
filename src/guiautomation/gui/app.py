@@ -174,9 +174,12 @@ class BuilderApp:
         self._scratch: Path | None = None  # Holds clips until the test is first saved.
         self._set_automation(automation or Automation(), self._path)
 
-        root.geometry("640x420")
+        root.geometry("760x560")
         root.protocol("WM_DELETE_WINDOW", self._quit)
+        root.bind("<Control-s>", lambda _event: self._save())
+        root.bind("<Control-o>", lambda _event: self._open())
         self._build_menu()
+        self._build_file_bar()
         toolbar = ttk.Frame(root)
         toolbar.pack(side="right", fill="y", padx=8, pady=8)
         for text, command in (
@@ -240,16 +243,36 @@ class BuilderApp:
             return False
         return True
 
-    def _build_menu(self) -> None:
-        menubar = tk.Menu(self.root)
-        file_menu = tk.Menu(menubar, tearoff=False)
-        for label, command in (
+    def _file_commands(self) -> tuple[tuple[str, Callable[[], object]], ...]:
+        return (
             ("New", self._new),
             ("Open...", self._open),
             ("Save", self._save),
             ("Save as...", self._save_as),
             ("Export script...", self._export),
-        ):
+        )
+
+    def _build_file_bar(self) -> None:
+        bar = ttk.Frame(self.root)
+        bar.pack(side="top", fill="x", padx=8, pady=(8, 0))
+        for text, command in self._file_commands():
+            ttk.Button(bar, text=text, command=command).pack(side="left", padx=(0, 4))
+
+    def _dialog_folder(self) -> str:
+        """Return where file dialogs start: the open test's folder, or ./automations."""
+        if self._path is not None:
+            return str(self._path.parent)
+        folder = Path.cwd() / "automations"
+        try:
+            folder.mkdir(exist_ok=True)
+        except OSError:
+            return str(Path.cwd())
+        return str(folder)
+
+    def _build_menu(self) -> None:
+        menubar = tk.Menu(self.root)
+        file_menu = tk.Menu(menubar, tearoff=False)
+        for label, command in self._file_commands():
             file_menu.add_command(label=label, command=command)
         menubar.add_cascade(label="File", menu=file_menu)
         self.root.configure(menu=menubar)
@@ -344,7 +367,7 @@ class BuilderApp:
     def _open(self) -> None:
         if not self._confirm_discard():
             return
-        path = filedialog.askopenfilename(filetypes=_JSON_TYPES)
+        path = filedialog.askopenfilename(filetypes=_JSON_TYPES, initialdir=self._dialog_folder())
         if not path:
             return
         try:
@@ -363,7 +386,9 @@ class BuilderApp:
     def _save_as(self) -> bool:
         if not self._apply_repeat():
             return False
-        path = filedialog.asksaveasfilename(defaultextension=".json", filetypes=_JSON_TYPES)
+        path = filedialog.asksaveasfilename(
+            defaultextension=".json", filetypes=_JSON_TYPES, initialdir=self._dialog_folder()
+        )
         return self._write(Path(path)) if path else False
 
     def _write(self, path: Path) -> bool:

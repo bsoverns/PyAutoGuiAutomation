@@ -9,7 +9,14 @@ from datetime import datetime
 from pathlib import PurePosixPath
 from typing import Any
 
-from guiautomation.model import REPEAT_FOREVER, Step, StepType, ValidationError, validate_step
+from guiautomation.model import (
+    DEFAULT_CONFIDENCE,
+    REPEAT_FOREVER,
+    Step,
+    StepType,
+    ValidationError,
+    validate_step,
+)
 from guiautomation.runner import Confirmation, RunResult, StepResult
 from guiautomation.screen import Monitor
 
@@ -27,7 +34,9 @@ class FieldSpec:
 _X = FieldSpec("x", "X (screen)", "int")
 _Y = FieldSpec("y", "Y (screen)", "int")
 _IMAGE = FieldSpec("image", "Image", "image")
-_CONFIDENCE = FieldSpec("confidence", "Confidence (0-1)", "float")
+_CONFIDENCE = FieldSpec(
+    "confidence", f"Confidence (1 = exact, lower = looser, blank = {DEFAULT_CONFIDENCE:g})", "float"
+)
 _TIMEOUT = FieldSpec("timeout", "Timeout (s)", "float")
 _TARGET = [_X, _Y, _IMAGE, _CONFIDENCE, _TIMEOUT]
 _IMAGE_ONLY = [_IMAGE, _CONFIDENCE, _TIMEOUT]

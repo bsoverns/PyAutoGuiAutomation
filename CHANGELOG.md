@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- New, Open, Save, Save as and Export script buttons along the top of the builder, with Ctrl+S and Ctrl+O. The file dialogs start in the `automations` folder.
+- Clicks glide to their target over 0.5 seconds before clicking.
+- The default image confidence is now 0.8, and the step editor explains the scale.
 - Clip targets from the screen while building, with no file dialog on an unsaved test, and see a preview in the step editor. The image field no longer takes a typed path.
 - **Clip a click** adds a click on a new clip in one action.
 - Replace steps in place with **Edit / replace**, and swap a step's target with **Replace clip**.
