@@ -4,6 +4,16 @@ A Windows desktop tool for building and running step-by-step GUI tests of your o
 
 ## Setup
 
+Install Python 3.13 or newer, clone the repository, and double-click **Run GuiAutomation.bat**. The first run on a computer creates `.venv` and installs the pinned packages, which takes a minute or two and needs an internet connection. Later runs open the builder straight away, and reinstall only when `pyproject.toml` has changed.
+
+To prepare the environment without opening the builder, for example before running the tests:
+
+```bash
+./"Run GuiAutomation.bat" --setup-only
+```
+
+The manual equivalent is:
+
 ```bash
 python -m venv .venv
 .venv/Scripts/python -m pip install -e ".[dev]"
