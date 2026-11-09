@@ -24,6 +24,13 @@ from guiautomation.screen import Monitor
 
 MIN_REGION_SIZE = 5
 IMAGE_FOLDER = "images"
+CLIP_DELAYS: tuple[tuple[str, int], ...] = (  # (label, seconds); the first is the default
+    ("No delay", 0),
+    ("3 seconds", 3),
+    ("5 seconds", 5),
+    ("10 seconds", 10),
+)
+COUNTDOWN_TICK_MS = 1000
 
 
 @dataclass(frozen=True)
@@ -271,6 +278,79 @@ def drag_to_region(x0: int, y0: int, x1: int, y1: int, desktop: Monitor) -> Regi
     if right - left < MIN_REGION_SIZE or bottom - top < MIN_REGION_SIZE:
         return None
     return Region(left, top, right - left, bottom - top)
+
+
+def crop_box(region: Region, desktop: Monitor) -> tuple[int, int, int, int]:
+    """Return the box that cuts a region out of an image of the whole virtual desktop."""
+    left, top = to_canvas(region.left, region.top, desktop)
+    return left, top, left + region.width, top + region.height
+
+
+def clip_delay_seconds(label: str) -> int:
+    """Return the seconds for a clip delay label. An unknown label means no delay."""
+    return dict(CLIP_DELAYS).get(label, 0)
+
+
+def countdown_text(remaining: int) -> str:
+    """Return the line shown while a delayed clip is pending."""
+    return f"Clip in {remaining} s. Click here or press Esc to cancel."
+
+
+class ClipCountdown:
+    """Counts down whole seconds before a clip, on an injected scheduler.
+
+    ``schedule(milliseconds, callback)`` returns a handle that ``cancel_scheduled`` accepts, as
+    tkinter's ``after`` and ``after_cancel`` do. ``on_tick`` gets the seconds left, once a second.
+    """
+
+    def __init__(
+        self,
+        seconds: int,
+        schedule: Callable[[int, Callable[[], None]], Any],
+        cancel_scheduled: Callable[[Any], None],
+        on_tick: Callable[[int], None],
+        on_done: Callable[[], None],
+    ) -> None:
+        self.remaining = max(seconds, 0)
+        self._schedule = schedule
+        self._cancel_scheduled = cancel_scheduled
+        self._on_tick = on_tick
+        self._on_done = on_done
+        self._handle: Any = None
+        self._started = False
+        self._over = False
+
+    def start(self) -> None:
+        """Begin counting. With nothing to count, ``on_done`` runs at once."""
+        if self._started:
+            return
+        self._started = True
+        self._show()
+
+    def _show(self) -> None:
+        if self.remaining <= 0:
+            self._over = True
+            self._on_done()
+            return
+        self._on_tick(self.remaining)
+        self._handle = self._schedule(COUNTDOWN_TICK_MS, self._second_passed)
+
+    def _second_passed(self) -> None:
+        self._handle = None
+        if self._over:
+            return
+        self.remaining -= 1
+        self._show()
+
+    def cancel(self) -> bool:
+        """Stop counting. Returns False if the countdown had already finished or been stopped."""
+        if self._over:
+            return False
+        self._over = True
+        if self._handle is not None:
+            self._cancel_scheduled(self._handle)
+            self._handle = None
+        return True
 
 
 def capture_filename(now: datetime) -> str:

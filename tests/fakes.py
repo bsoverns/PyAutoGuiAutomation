@@ -109,3 +109,38 @@ class FakeSct:
         x = region["left"] - desk["left"]
         y = region["top"] - desk["top"]
         return self.canvas[y : y + region["height"], x : x + region["width"]]
+
+
+class FakeScheduler:
+    """Stands in for tkinter's ``after`` and ``after_cancel``. Time moves only in ``advance``."""
+
+    def __init__(self) -> None:
+        self.now = 0
+        self.cancelled: list[int] = []
+        self._next = 0
+        self._due: dict[int, tuple[int, object]] = {}
+
+    def schedule(self, milliseconds, callback) -> int:
+        self._next += 1
+        self._due[self._next] = (self.now + milliseconds, callback)
+        return self._next
+
+    def cancel(self, handle) -> None:
+        self.cancelled.append(handle)
+        self._due.pop(handle, None)
+
+    @property
+    def waiting(self) -> int:
+        return len(self._due)
+
+    def advance(self, milliseconds: int) -> None:
+        """Move time on, running each callback that falls due, in order."""
+        end = self.now + milliseconds
+        while True:
+            ready = [(when, handle) for handle, (when, _) in self._due.items() if when <= end]
+            if not ready:
+                break
+            when, handle = min(ready)
+            self.now = when
+            self._due.pop(handle)[1]()
+        self.now = end
